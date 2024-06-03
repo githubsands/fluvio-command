@@ -3,7 +3,7 @@
 #![warn(missing_docs)]
 
 use std::process::{Command, Output};
-use tracing::debug;
+use tracing::{debug, info};
 
 /// `Ok(Output)` when a child process successfully runs and returns exit code `0`.
 ///
@@ -147,7 +147,7 @@ impl CommandExt for Command {
     }
 
     fn result(&mut self) -> CommandResult {
-        debug!("Executing> {}", self.display());
+        info!("Executing> {}", self.display());
 
         self.output()
             .map_err(|e| CommandError {
