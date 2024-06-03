@@ -2,7 +2,7 @@
 
 #![warn(missing_docs)]
 
-use std::process::{Command, Output};
+use std::process::{Command as osCommand, Output};
 use tracing::{debug, info};
 
 /// `Ok(Output)` when a child process successfully runs and returns exit code `0`.
@@ -126,7 +126,7 @@ pub trait CommandExt {
     fn result(&mut self) -> CommandResult;
 }
 
-impl CommandExt for Command {
+impl CommandExt for osCommand {
     fn inherit(&mut self) -> &mut Self {
         use std::process::Stdio;
         self.stdout(Stdio::inherit()).stderr(Stdio::inherit())
