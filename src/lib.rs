@@ -200,7 +200,6 @@ impl CommandExt for osCommand {
 
 #[derive(Debug)]
 pub enum CommandConnectivityError {
-    Undefined,
     Error(String),
 }
 
@@ -212,7 +211,6 @@ fn check_connectivity_error(stderr: Vec<u8>) -> Result<(), CommandConnectivityEr
             error!("kubernetes cluster unreachable");
             return Err(CommandConnectivityError::Error(stderr_str));
         }
-        return Err(CommandConnectivityError::Undefined);
     }
 
     Ok(())
