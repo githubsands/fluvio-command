@@ -39,6 +39,9 @@ Child process completed with non-zero exit code {0}
     /// There was an error invoking the command
     #[error("An error occurred while invoking child process")]
     IoError(#[from] std::io::Error),
+
+    #[error("An error occurred while trying to connect")]
+    ConnectivityError(CommandConnectivityError),
 }
 
 /// Adds useful extension methods to the `Command` type
@@ -153,6 +156,7 @@ impl CommandExt for osCommand {
     //
     // - an issue is that we may have  a needed upgrade error occur under "None".
     //   CommandErrorKind terminated versus ExitErrors
+
     fn result(&mut self) -> CommandResult {
         info!("executing command {}", self.display());
         self.output()
@@ -179,6 +183,12 @@ impl CommandExt for osCommand {
                         code,
                         output
                     );
+                    if let Err(helm_error) = check_connectivity_error(output.stderr.clone()) {
+                        return Err(CommandError {
+                            command: self.display(),
+                            source: CommandErrorKind::ConnectivityError(helm_error),
+                        });
+                    }
                     return Err(CommandError {
                         command: self.display(),
                         source: CommandErrorKind::ExitError(code, output),
@@ -186,6 +196,26 @@ impl CommandExt for osCommand {
                 }
             })
     }
+}
+
+#[derive(Debug)]
+pub enum CommandConnectivityError {
+    Undefined,
+    Error(String),
+}
+
+fn check_connectivity_error(stderr: Vec<u8>) -> Result<(), CommandConnectivityError> {
+    if !stderr.is_empty() {
+        let stderr_str = String::from_utf8(stderr)
+            .map_err(|e| CommandConnectivityError::Error(e.to_string()))?;
+        if stderr_str.contains("Kubernetes cluster unreachable") {
+            error!("kubernetes cluster unreachable");
+            return Err(CommandConnectivityError::Error(stderr_str));
+        }
+        return Err(CommandConnectivityError::Undefined);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
