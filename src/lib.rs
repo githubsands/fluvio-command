@@ -3,7 +3,7 @@
 #![warn(missing_docs)]
 
 use std::process::{Command as osCommand, Output};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 /// `Ok(Output)` when a child process successfully runs and returns exit code `0`.
 ///
@@ -146,9 +146,15 @@ impl CommandExt for osCommand {
         format!("{:?}", self).replace("\"", "")
     }
 
+    // NOTE: output checks an internal command error
+    // and maps it to specific command errors
+    //
+    // -- ideally we can match by string below --
+    //
+    // - an issue is that we may have  a needed upgrade error occur under "None".
+    //   CommandErrorKind terminated versus ExitErrors
     fn result(&mut self) -> CommandResult {
-        info!("Executing> {}", self.display());
-
+        info!("executing command {}", self.display());
         self.output()
             .map_err(|e| CommandError {
                 command: self.display(),
@@ -156,14 +162,28 @@ impl CommandExt for osCommand {
             })
             .and_then(|output| match output.status.code() {
                 Some(0i32) => Ok(output),
-                None => Err(CommandError {
-                    command: self.display(),
-                    source: CommandErrorKind::Terminated,
-                }),
-                Some(code) => Err(CommandError {
-                    command: self.display(),
-                    source: CommandErrorKind::ExitError(code, output),
-                }),
+                None => {
+                    error!(
+                        "command error occured with {}. a command error kind occured",
+                        self.display()
+                    );
+                    return Err(CommandError {
+                        command: self.display(),
+                        source: CommandErrorKind::Terminated,
+                    });
+                }
+                Some(code) => {
+                    error!(
+                        "an error occured with command {:?}, code {:?} and output {:?}",
+                        self.display(),
+                        code,
+                        output
+                    );
+                    return Err(CommandError {
+                        command: self.display(),
+                        source: CommandErrorKind::ExitError(code, output),
+                    });
+                }
             })
     }
 }
@@ -174,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_output_display() {
-        let error = Command::new("ls")
+        let error = osCommand::new("ls")
             .arg("does-not-exist")
             .result()
             .unwrap_err();
@@ -182,5 +202,20 @@ mod tests {
         assert!(error_display.starts_with("Child process completed with non-zero exit code"));
         assert!(error_display.contains("stdout:"));
         assert!(error_display.contains("stderr:"));
+    }
+
+    #[test]
+    fn test_output_print() {
+        let error = osCommand::new("ls").arg("does-not-exist").print();
+    }
+
+    #[test]
+    fn test_output_new() {
+        let error = osCommand::new("ls").arg("does-not-exist").new();
+    }
+
+    #[test]
+    fn test_output_result() {
+        let error = osCommand::new("ls").arg("does-not-exist").result();
     }
 }
